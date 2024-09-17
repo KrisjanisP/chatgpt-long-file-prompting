@@ -16,12 +16,12 @@ import sys
 import logging
 import time
 from typing import List, Tuple
-import openai
+from openai import OpenAI
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if present
 load_dotenv()
-from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
@@ -123,7 +123,7 @@ def read_file_in_chunks(file_path: str, chunk_size: int):
         chunk_size (int): Number of lines per chunk.
 
     Yields:
-        List[str]: A chunk of lines from the file.
+        str: A chunk of lines from the file.
     """
     logger.debug(f"Opening file: {file_path}")
     try:
@@ -146,20 +146,6 @@ def read_file_in_chunks(file_path: str, chunk_size: int):
         sys.exit(1)
 
 
-def get_openai_api_key() -> str:
-    """
-    Retrieves the OpenAI API key from environment variables.
-
-    Returns:
-        str: OpenAI API key.
-    """
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        logger.error("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
-        sys.exit(1)
-    return api_key
-
-
 def refine_prompt(user_prompt: str, engine: str = "gpt-4o-mini") -> Tuple[str, str]:
     """
     Refines the user-provided prompt to work effectively with chunked processing.
@@ -175,22 +161,20 @@ def refine_prompt(user_prompt: str, engine: str = "gpt-4o-mini") -> Tuple[str, s
     user_message = (
         f"The user wants to analyze a large file using the following prompt:\n\n\"{user_prompt}\"\n\n"
         "Refine this prompt so that it can be effectively used to analyze individual chunks of the file. "
-        "Provide a modified prompt suitable for chunk analysis and additional instructions on how to compile the final report from the chunk analyses."
+        "Provide a modified prompt suitable for chunk analysis that includes detailed reasoning steps (Chain of Thought), and additional instructions on how to compile the final report from the chunk analyses."
     )
 
     try:
         logger.debug(f"PROMPT Refining Prompt:\n{user_message}")
-        response = client.chat.completions.create(
-            model=engine,
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message}
-            ],
-            temperature=0.3,
-            max_tokens=1000,
-            n=1,
-            stop=None
-        )
+        response = client.chat.completions.create(model=engine,
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message}
+        ],
+        temperature=0.3,
+        max_tokens=1500,
+        n=1,
+        stop=None)
         refined_content = response.choices[0].message.content.strip()
         logger.debug(f"PROMPT Refined Content:\n{refined_content}")
 
@@ -207,18 +191,19 @@ def refine_prompt(user_prompt: str, engine: str = "gpt-4o-mini") -> Tuple[str, s
         logger.debug(f"PROMPT Chunk Prompt:\n{chunk_prompt}")
         logger.debug(f"PROMPT Compilation Instructions:\n{compilation_instructions}")
         return chunk_prompt, compilation_instructions
-    except openai.OpenAIError as e:
+    except OpenAI.OpenAIError as e:
         logger.error(f"OpenAI API error during prompt refinement: {e}")
         sys.exit(1)
 
 
-def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4o-mini") -> str:
+def analyze_chunk(chunk: str, chunk_prompt: str, previous_analysis: str = "", engine: str = "gpt-4o-mini") -> str:
     """
     Sends a chunk of text to ChatGPT for analysis using the refined chunk prompt and returns the response.
 
     Args:
         chunk (str): The text chunk to analyze.
         chunk_prompt (str): The refined prompt for chunk analysis.
+        previous_analysis (str): The analysis result from the previous chunk.
         engine (str): The OpenAI model to use.
 
     Returns:
@@ -228,29 +213,39 @@ def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4o-mini") ->
     backoff_factor = 2
     for attempt in range(1, max_retries + 1):
         try:
-            prompt_content = f"{chunk_prompt}\n\nText:\n{chunk}"
+            # Incorporate previous analysis into the current prompt
+            if previous_analysis:
+                prompt_content = (
+                    f"{chunk_prompt}\n\n"
+                    f"Previous Analysis:\n{previous_analysis}\n\n"
+                    f"Text:\n{chunk}"
+                )
+            else:
+                prompt_content = f"{chunk_prompt}\n\nText:\n{chunk}"
+
             logger.debug(f"PROMPT Sending Chunk Prompt:\n{prompt_content}")
-            response = client.chat.completions.create(
-                model=engine,
-                messages=[
-                    {"role": "system", "content": "You are an assistant that analyzes provided text based on the given prompt."},
-                    {"role": "user", "content": prompt_content}
-                ],
-                temperature=0.5,
-                max_tokens=1500,
-                n=1,
-                stop=None
-            )
+            response = client.chat.completions.create(model=engine,
+            messages=[
+                {"role": "system", "content": "You are an assistant that analyzes provided text based on the given prompt using detailed reasoning steps (Chain of Thought)."},
+                {"role": "user", "content": prompt_content}
+            ],
+            temperature=0.5,
+            max_tokens=2000,
+            n=1,
+            stop=None)
             analysis = response.choices[0].message.content.strip()
             # Log the analysis result to results.log using results_logger
             results_logger.info(f"--- Analysis for Chunk ---\n{analysis}\n")
             return analysis
-        except openai.RateLimitError:
+        except OpenAI.RateLimitError:
             wait_time = backoff_factor ** attempt
             logger.warning(f"Rate limit exceeded. Retrying in {wait_time} seconds...")
             time.sleep(wait_time)
-        except openai.OpenAIError as e:
+        except OpenAI.OpenAIError as e:
             logger.error(f"OpenAI API error: {e}")
+            break
+        except Exception as e:
+            logger.error(f"Unexpected error during chunk analysis: {e}")
             break
     logger.error("Failed to retrieve analysis from ChatGPT after multiple attempts.")
     # Log the failure message to results.log
@@ -258,7 +253,7 @@ def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4o-mini") ->
     return "Analysis not available due to API errors."
 
 
-def compile_final_report(partial_results: List[str], compilation_instructions: str, engine: str = "gpt-4o") -> str:
+def compile_final_report(partial_results: List[str], compilation_instructions: str, engine: str = "gpt-4o-mini") -> str:
     """
     Compiles all partial analysis results into a final comprehensive report using the compilation instructions.
 
@@ -275,31 +270,33 @@ def compile_final_report(partial_results: List[str], compilation_instructions: s
         f"The user has provided the following compilation instructions:\n\n\"{compilation_instructions}\"\n\n"
         "Here are the individual analysis results from each chunk:\n\n" +
         "\n\n".join(partial_results) +
-        "\n\nPlease compile them into a final comprehensive report."
+        "\n\nPlease compile them into a final comprehensive report, ensuring continuity and coherence throughout."
     )
 
     try:
         logger.debug(f"PROMPT Compilation Prompt:\n{user_message}")
-        response = client.chat.completions.create(
-            model=engine,
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message}
-            ],
-            temperature=0.3,
-            max_tokens=2000,
-            n=1,
-            stop=None
-        )
+        response = client.chat.completions.create(model=engine,
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message}
+        ],
+        temperature=0.3,
+        max_tokens=3000,
+        n=1,
+        stop=None)
         final_report = response.choices[0].message.content.strip()
         # Log the final report to results.log using results_logger
         results_logger.info("--- Final Compiled Report ---\n" + final_report + "\n")
         return final_report
-    except openai.OpenAIError as e:
+    except OpenAI.OpenAIError as e:
         logger.error(f"OpenAI API error during final compilation: {e}")
         # Log the failure message to results.log
         results_logger.info("Final report compilation failed due to API errors.\n")
         return "Final report compilation failed due to API errors."
+    except Exception as e:
+        logger.error(f"Unexpected error during final report compilation: {e}")
+        results_logger.info("Final report compilation failed due to unexpected errors.\n")
+        return "Final report compilation failed due to unexpected errors."
 
 
 def save_logs(prompt_log_path: str, result_log_path: str):
@@ -347,14 +344,16 @@ def main():
 
     partial_results = []
     total_chunks = 0
+    previous_analysis = ""  # Initialize previous analysis
 
     # Step 2: Process the file in chunks and analyze each chunk
     for chunk in read_file_in_chunks(args.file, args.chunk_size):
         total_chunks += 1
         logger.info(f"Analyzing chunk {total_chunks}")
-        analysis = analyze_chunk(chunk, chunk_prompt)
+        analysis = analyze_chunk(chunk, chunk_prompt, previous_analysis)
         partial_results.append(f"--- Analysis for Chunk {total_chunks} ---\n{analysis}\n")
         logger.info(f"Completed analysis for chunk {total_chunks}")
+        previous_analysis = analysis  # Update previous analysis for the next chunk
 
     logger.info("All chunks have been processed. Compiling final report.")
 
