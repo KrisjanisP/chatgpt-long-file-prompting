@@ -183,29 +183,6 @@ The `main` function orchestrates the entire process:
 - **💾 Flexible Output Options:** Allows users to specify the format and destination of the analysis report.
 - **🧪 Testing:** Encourages the inclusion of unit tests to ensure the reliability and correctness of the tool.
 
-## 🤝 Contributing
-
-Contributions are welcome! 🎉 Please open an issue or submit a pull request for any enhancements, bug fixes, or feature requests.
-
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE). 📝
-
-## 🛡️ Disclaimer
-
-Ensure that you comply with OpenAI's [usage policies](https://platform.openai.com/docs/usage-policies) when using this tool. The developer is not responsible for any misuse of the program.
-
-## 📬 Contact
-
-For any inquiries or support, please contact [your.email@example.com](mailto:your.email@example.com). 📧
-
----
-
-## 📝 Final Notes
-
-**ChatGPT Long File Prompting** provides a robust foundation for integrating advanced language models into file analysis workflows with customizable prompts. It emphasizes clarity, robustness, and ease of use, making it an excellent candidate for sharing on GitHub and collaborating with the developer community.
-
-By allowing users to input their own prompts and intelligently refining them for chunked processing, the tool becomes highly adaptable to a wide range of analysis tasks, ensuring that the limitations of context length do not hinder the depth and quality of insights derived from large files.
-
-Happy Analyzing! 🎉
-```
