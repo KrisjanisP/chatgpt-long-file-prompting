@@ -26,8 +26,8 @@ A Python utility designed to analyze exceptionally long files by intelligently s
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/yourusername/chatgpt-long-file-prompting.git
-   cd chatgpt-long-file-prompting
+   git clone https://github.com/yourusername/long-file-prompt.git
+   cd long-file-prompt
    ```
 
 2. **Create a Virtual Environment:**
@@ -60,7 +60,7 @@ A Python utility designed to analyze exceptionally long files by intelligently s
 ## 🛠️ Usage
 
 ```bash
-python chatgpt-long-file-prompting.py --file path/to/your/file.txt --prompt "Your custom prompt here" --chunk-size 1000 --output analysis_report.txt --verbose
+python long-file-prompt.py --file path/to/your/file.txt --prompt "Your custom prompt here" --chunk-size 1000 --output analysis_report.txt --verbose
 ```
 
 ### 📋 Arguments
@@ -74,15 +74,15 @@ python chatgpt-long-file-prompting.py --file path/to/your/file.txt --prompt "You
 ### 💡 Example
 
 ```bash
-python chatgpt-long-file-prompting.py --file sample_code.cpp --prompt "Analyze the exit codes and their usage in the following code." --chunk-size 500 --output report.txt --verbose
+python long-file-prompt.py --file sample_code.cpp --prompt "Analyze the exit codes and their usage in the following code." --chunk-size 500 --output report.txt --verbose
 ```
 
 ## 📂 Project Structure
 
 ```
-chatgpt-long-file-prompting/
+long-file-prompt/
 ├── .env
-├── chatgpt-long-file-prompting.py
+├── long-file-prompt.py
 ├── requirements.txt
 ├── README.md
 └── LICENSE
