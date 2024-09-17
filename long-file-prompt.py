@@ -147,7 +147,7 @@ def get_openai_api_key() -> str:
         sys.exit(1)
     return api_key
 
-def refine_prompt(user_prompt: str, engine: str = "gpt-4") -> Tuple[str, str]:
+def refine_prompt(user_prompt: str, engine: str = "gpt-4o-mini") -> Tuple[str, str]:
     """
     Refines the user-provided prompt to work effectively with chunked processing.
     
@@ -196,7 +196,7 @@ def refine_prompt(user_prompt: str, engine: str = "gpt-4") -> Tuple[str, str]:
         logger.error(f"OpenAI API error during prompt refinement: {e}")
         sys.exit(1)
 
-def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4") -> str:
+def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4o-mini") -> str:
     """
     Sends a chunk of text to ChatGPT for analysis using the refined chunk prompt and returns the response.
     
@@ -236,7 +236,7 @@ def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4") -> str:
     logger.error("Failed to retrieve analysis from ChatGPT after multiple attempts.")
     return "Analysis not available due to API errors."
 
-def compile_final_report(partial_results: List[str], compilation_instructions: str, engine: str = "gpt-4") -> str:
+def compile_final_report(partial_results: List[str], compilation_instructions: str, engine: str = "gpt-4o") -> str:
     """
     Compiles all partial analysis results into a final comprehensive report using the compilation instructions.
     
