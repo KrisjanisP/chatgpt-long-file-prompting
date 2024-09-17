@@ -103,7 +103,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-def read_file_in_chunks(file_path: str, chunk_size: int) -> List[str]:
+def read_file_in_chunks(file_path: str, chunk_size: int):
     """
     Reads a file and yields chunks of lines.
     
