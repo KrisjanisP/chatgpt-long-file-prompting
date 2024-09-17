@@ -1,0 +1,158 @@
+/*
+ * It is strictly recommended to include "testlib.h" before any other include
+ * in your code. In this case testlib overrides compiler specific "random()".
+ *
+ * If you can't compile your code and compiler outputs something about
+ * ambiguous call of "random_shuffle", "rand" or "srand" it means that
+ * you shouldn't use them. Use "shuffle", and "rnd.next()" instead of them
+ * because these calls produce stable result for any C++ compiler. Read
+ * sample generator sources for clarification.
+ *
+ * Please read the documentation for class "random_t" and use "rnd" instance in
+ * generators. Probably, these sample calls will be useful for you:
+ *              rnd.next(); rnd.next(100); rnd.next(1, 2);
+ *              rnd.next(3.14); rnd.next("[a-z]{1,100}").
+ *
+ * Also read about wnext() to generate off-center random distribution.
+ *
+ * See https://github.com/MikeMirzayanov/testlib/ to get latest version or bug tracker.
+ */
+
+#ifndef _TESTLIB_H_
+#define _TESTLIB_H_
+
+/*
+ * Copyright (c) 2005-2024
+ */
+
+#define VERSION "0.9.43"
+
+/*
+ * Mike Mirzayanov
+ *
+ * This material is provided "as is", with absolutely no warranty expressed
+ * or implied. Any use is at your own risk.
+ *
+ * Permission to use or copy this software for any purpose is hereby granted
+ * without fee, provided the above notices are retained on all copies.
+ * Permission to modify the code and to distribute modified code is granted,
+ * provided the above notices are retained, and a notice that the code was
+ * modified is included with the above copyright notice.
+ *
+ */
+
+/* NOTE: This file contains testlib library for C++.
+ *
+ *   Check, using testlib running format:
+ *     check.exe <Input_File> <Output_File> <Answer_File> [<Result_File> [-appes]],
+ *   If result file is specified it will contain results.
+ *
+ *   Validator, using testlib running format:
+ *     validator.exe < input.txt,
+ *   It will return non-zero exit code and writes message to standard output.
+ *
+ *   Generator, using testlib running format:
+ *     gen.exe [parameter-1] [parameter-2] [... paramerter-n]
+ *   You can write generated test(s) into standard output or into the file(s).
+ *
+ *   Interactor, using testlib running format:
+ *     interactor.exe <Input_File> <Output_File> [<Answer_File> [<Result_File> [-appes]]],
+ *   Reads test from inf (mapped to args[1]), writes result to tout (mapped to argv[2],
+ *   can be judged by checker later), reads program output from ouf (mapped to stdin),
+ *   writes output to program via stdout (use cout, printf, etc).
+ */
+
+const char *latestFeatures[] = {
+        "Added ConstantBoundsLog, VariablesLog to validator testOverviewLogFile",
+        "Use setAppesModeEncoding to change xml encoding from windows-1251 to other",
+        "rnd.any/wany use distance/advance instead of -/+: now they support sets/multisets",
+        "Use syntax `int t = inf.readInt(1, 3, \"~t\");` to skip the lower bound check. Tildes can be used on either side or both: ~t, t~, ~t~",
+        "Supported EJUDGE support in registerTestlibCmd",
+        "Supported '--testMarkupFileName fn' and '--testCase tc/--testCaseFileName fn' for validators",
+        "Added opt defaults via opt<T>(key/index, default_val); check unused opts when using has_opt or default opt (turn off this check with suppressEnsureNoUnusedOpt()).",
+        "For checker added --group and --testset command line params (like for validator), use checker.group() or checker.testset() to get values",
+        "Added quitpi(points_info, message) function to return with _points exit code 7 and given points_info",
+        "rnd.partition(size, sum[, min_part=1]) returns random (unsorted) partition which is a representation of the given `sum` as a sum of `size` positive integers (or >=min_part if specified)",
+        "rnd.distinct(size, n) and rnd.distinct(size, from, to)",
+        "opt<bool>(\"some_missing_key\") returns false now",
+        "has_opt(key)",
+        "Abort validator on validator.testset()/validator.group() if registered without using command line",
+        "Print integer range violations in a human readable way like `violates the range [1, 10^9]`",
+        "Opts supported: use them like n = opt<int>(\"n\"), in a command line you can use an exponential notation",
+        "Reformatted",
+        "Use setTestCase(i) or unsetTestCase() to support test cases (you can use it in any type of program: generator, interactor, validator or checker)",
+        "Fixed issue #87: readStrictDouble accepts \"-0.00\"",
+        "Fixed issue #83: added InStream::quitif(condition, ...)",
+        "Fixed issue #79: fixed missed guard against repeated header include",
+        "Fixed issue #80: fixed UB in case of huge quitf message",
+        "Fixed issue #84: added readXs(size, indexBase = 1)",
+        "Fixed stringstream repeated usage issue",
+        "Fixed compilation in g++ (for std=c++03)",
+        "Batch of println functions (support collections, iterator ranges)",
+        "Introduced rnd.perm(size, first = 0) to generate a `first`-indexed permutation",
+        "Allow any whitespace in readInts-like functions for non-validators",
+        "Ignore 4+ command line arguments ifdef EJUDGE",
+        "Speed up of vtos",
+        "Show line number in validators in case of incorrect format",
+        "Truncate huge checker/validator/interactor message",
+        "Fixed issue with readTokenTo of very long tokens, now aborts with _pe/_fail depending of a stream type",
+        "Introduced InStream::ensure/ensuref checking a condition, returns wa/fail depending of a stream type",
+        "Fixed compilation in VS 2015+",
+        "Introduced space-separated read functions: readWords/readTokens, multilines read functions: readStrings/readLines",
+        "Introduced space-separated read functions: readInts/readIntegers/readLongs/readUnsignedLongs/readDoubles/readReals/readStrictDoubles/readStrictReals",
+        "Introduced split/tokenize functions to separate string by given char",
+        "Introduced InStream::readUnsignedLong and InStream::readLong with unsigned long long parameters",
+        "Supported --testOverviewLogFileName for validator: bounds hits + features",
+        "Fixed UB (sequence points) in random_t",
+        "POINTS_EXIT_CODE returned back to 7 (instead of 0)",
+        "Removed disable buffers for interactive problems, because it works unexpectedly in wine",
+        "InStream over string: constructor of InStream from base InStream to inherit policies and std::string",
+        "Added expectedButFound quit function, examples: expectedButFound(_wa, 10, 20), expectedButFound(_fail, ja, pa, \"[n=%d,m=%d]\", n, m)",
+        "Fixed incorrect interval parsing in patterns",
+        "Use registerGen(argc, argv, 1) to develop new generator, use registerGen(argc, argv, 0) to compile old generators (originally created for testlib under 0.8.7)",
+        "Introduced disableFinalizeGuard() to switch off finalization checkings",
+        "Use join() functions to format a range of items as a single string (separated by spaces or other separators)",
+        "Use -DENABLE_UNEXPECTED_EOF to enable special exit code (by default, 8) in case of unexpected eof. It is good idea to use it in interactors",
+        "Use -DUSE_RND_AS_BEFORE_087 to compile in compatibility mode with random behavior of versions before 0.8.7",
+        "Fixed bug with nan in stringToDouble",
+        "Fixed issue around overloads for size_t on x64",
+        "Added attribute 'points' to the XML output in case of result=_points",
+        "Exit codes can be customized via macros, e.g. -DPE_EXIT_CODE=14",
+        "Introduced InStream function readWordTo/readTokenTo/readStringTo/readLineTo for faster reading",
+        "Introduced global functions: format(), englishEnding(), upperCase(), lowerCase(), compress()",
+        "Manual buffer in InStreams, some IO speed improvements",
+        "Introduced quitif(bool, const char* pattern, ...) which delegates to quitf() in case of first argument is true",
+        "Introduced guard against missed quitf() in checker or readEof() in validators",
+        "Supported readStrictReal/readStrictDouble - to use in validators to check strictly float numbers",
+        "Supported registerInteraction(argc, argv)",
+        "Print checker message to the stderr instead of stdout",
+        "Supported TResult _points to output calculated score, use quitp(...) functions",
+        "Fixed to be compilable on Mac",
+        "PC_BASE_EXIT_CODE=50 in case of defined TESTSYS",
+        "Fixed issues 19-21, added __attribute__ format printf",
+        "Some bug fixes",
+        "ouf.readInt(1, 100) and similar calls return WA",
+        "Modified random_t to avoid integer overflow",
+        "Truncated checker output [patch by Stepan Gatilov]",
+        "Renamed class random -> class random_t",
+        "Supported name parameter for read-and-validation methods, like readInt(1, 2, \"n\")",
+        "Fixed bug in readDouble()",
+        "Improved ensuref(), fixed nextLine to work in case of EOF, added startTest()",
+        "Supported \"partially correct\", example: quitf(_pc(13), \"result=%d\", result)",
+        "Added shuffle(begin, end), use it instead of random_shuffle(begin, end)",
+        "Added readLine(const string& ptrn), fixed the logic of readLine() in the validation mode",
+        "Package extended with samples of generators and validators",
+        "Written the documentation for classes and public methods in testlib.h",
+        "Implemented random routine to support generators, use registerGen() to switch it on",
+        "Implemented strict mode to validate tests, use registerValidation() to switch it on",
+        "Now ncmp.cpp and wcmp.cpp are return WA if answer is suffix or prefix of the output",
+        "Added InStream::readLong() and removed InStream::readLongint()",
+        "Now no footer added to each report by default (use directive FOOTER to switch on)",
+        "Now every checker has a name, use setName(const char* format, ...) to set it",
+        "Now it is compatible with TTS (by Kittens Computing)",
+        "Added \'ensure(condition, message = \"\")\' feature, it works like assert()",
+        "Fixed compatibility with MS C++ 7.1",
+        "Added footer with exit code information",
+        "Added compatibility with EJUDGE (compile with EJUDGE directive)",
+        "Added compatibility with Contester (compile with CONTESTER directive)"
+};

@@ -21,7 +21,9 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file if present
 load_dotenv()
+from openai import OpenAI
 
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -121,21 +123,19 @@ def refine_prompt(user_prompt: str, engine: str = "gpt-4") -> Tuple[str, str]:
         "Refine this prompt so that it can be effectively used to analyze individual chunks of the file. "
         "Provide a modified prompt suitable for chunk analysis and additional instructions on how to compile the final report from the chunk analyses."
     )
-    
+
     try:
         logger.debug("Sending prompt refinement request to ChatGPT")
-        response = openai.ChatCompletion.create(
-            model=engine,
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message}
-            ],
-            temperature=0.3,
-            max_tokens=1000,
-            n=1,
-            stop=None
-        )
-        refined_content = response.choices[0].message['content'].strip()
+        response = client.chat.completions.create(model=engine,
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message}
+        ],
+        temperature=0.3,
+        max_tokens=1000,
+        n=1,
+        stop=None)
+        refined_content = response.choices[0].message.content.strip()
         # Split the refined content into chunk prompt and compilation instructions
         # Assuming the assistant returns two clearly separated sections
         split_marker = "\n\n---\n\n"
@@ -147,7 +147,7 @@ def refine_prompt(user_prompt: str, engine: str = "gpt-4") -> Tuple[str, str]:
             compilation_instructions = "Please compile the analysis results from all chunks into a final comprehensive report."
         logger.debug("Received refined prompt from ChatGPT")
         return chunk_prompt, compilation_instructions
-    except openai.error.OpenAIError as e:
+    except openai.OpenAIError as e:
         logger.error(f"OpenAI API error during prompt refinement: {e}")
         sys.exit(1)
 
@@ -161,25 +161,23 @@ def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4") -> str:
     for attempt in range(1, max_retries + 1):
         try:
             logger.debug(f"Sending chunk to ChatGPT (Attempt {attempt})")
-            response = openai.ChatCompletion.create(
-                model=engine,
-                messages=[
-                    {"role": "system", "content": "You are an assistant that analyzes provided text based on the given prompt."},
-                    {"role": "user", "content": f"{chunk_prompt}\n\nText:\n{chunk}"}
-                ],
-                temperature=0.5,
-                max_tokens=1500,
-                n=1,
-                stop=None
-            )
-            analysis = response.choices[0].message['content'].strip()
+            response = client.chat.completions.create(model=engine,
+            messages=[
+                {"role": "system", "content": "You are an assistant that analyzes provided text based on the given prompt."},
+                {"role": "user", "content": f"{chunk_prompt}\n\nText:\n{chunk}"}
+            ],
+            temperature=0.5,
+            max_tokens=1500,
+            n=1,
+            stop=None)
+            analysis = response.choices[0].message.content.strip()
             logger.debug("Received analysis from ChatGPT")
             return analysis
-        except openai.error.RateLimitError:
+        except openai.RateLimitError:
             wait_time = backoff_factor ** attempt
             logger.warning(f"Rate limit exceeded. Retrying in {wait_time} seconds...")
             time.sleep(wait_time)
-        except openai.error.OpenAIError as e:
+        except openai.OpenAIError as e:
             logger.error(f"OpenAI API error: {e}")
             break
     logger.error("Failed to retrieve analysis from ChatGPT after multiple attempts.")
@@ -196,24 +194,22 @@ def compile_final_report(partial_results: List[str], compilation_instructions: s
         "\n\n".join(partial_results) +
         "\n\nPlease compile them into a final comprehensive report."
     )
-    
+
     try:
         logger.debug("Sending final compilation request to ChatGPT")
-        response = openai.ChatCompletion.create(
-            model=engine,
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message}
-            ],
-            temperature=0.3,
-            max_tokens=2000,
-            n=1,
-            stop=None
-        )
-        final_report = response.choices[0].message['content'].strip()
+        response = client.chat.completions.create(model=engine,
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message}
+        ],
+        temperature=0.3,
+        max_tokens=2000,
+        n=1,
+        stop=None)
+        final_report = response.choices[0].message.content.strip()
         logger.debug("Received final compiled report from ChatGPT")
         return final_report
-    except openai.error.OpenAIError as e:
+    except openai.OpenAIError as e:
         logger.error(f"OpenAI API error during final compilation: {e}")
         return "Final report compilation failed due to API errors."
 
@@ -223,7 +219,6 @@ def main():
     """
     args = parse_arguments()
     setup_logging(args.verbose)
-    openai.api_key = get_openai_api_key()
 
     logger.info(f"Starting analysis of file: {args.file}")
     logger.info(f"Using custom prompt: {args.prompt}")

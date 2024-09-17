@@ -6,7 +6,7 @@
 
 ## 🚀 Overview
 
-**ChatGPT Long File Prompting** is a powerful Python utility designed to analyze exceptionally long files by intelligently splitting them into manageable chunks and leveraging ChatGPT for comprehensive analysis. This tool ensures that large files are processed efficiently without being hindered by context length limitations of language models. Ideal for developers, data analysts, and researchers aiming to extract detailed insights from extensive documents, codebases, logs, and more.
+A Python utility designed to analyze exceptionally long files by intelligently splitting them into manageable chunks and leveraging ChatGPT for comprehensive analysis. This tool ensures that large files are processed efficiently without being hindered by context length limitations of language models. Ideal for developers, data analysts, and researchers aiming to extract detailed insights from extensive documents, codebases, logs, and more.
 
 ## 🌟 Features
 
