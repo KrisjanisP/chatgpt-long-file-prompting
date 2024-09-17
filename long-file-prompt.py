@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-chatgpt-long-file-prompting.py
+long-file-prompt.py
 
 A Python utility to analyze long files by sending chunks of their content to ChatGPT.
 Allows users to provide custom prompts, refines these prompts for chunked processing,
 retrieves partial analysis results in real-time, and compiles a comprehensive report upon completion.
 
-Author: Your Name
+Author: Krišjānis Petručeņa
 License: MIT
 """
 
@@ -25,13 +25,18 @@ from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
-# Configure logging
+# Configure main logger
 logger = logging.getLogger(__name__)
+
+# Configure results logger
+results_logger = logging.getLogger('results')
+results_logger.setLevel(logging.INFO)  # Set to INFO to capture all results
+
 
 def setup_logging(verbose: bool, prompt_log_path: str, result_log_path: str):
     """
     Sets up the logging configuration.
-    
+
     Args:
         verbose (bool): If True, set logging level to DEBUG, else INFO.
         prompt_log_path (str): Path to the file where prompts will be logged.
@@ -40,7 +45,7 @@ def setup_logging(verbose: bool, prompt_log_path: str, result_log_path: str):
     log_level = logging.DEBUG if verbose else logging.INFO
     logger.setLevel(log_level)
 
-    # Create formatter
+    # Create formatter for main logger
     formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
 
     # Stream handler for console output
@@ -55,17 +60,22 @@ def setup_logging(verbose: bool, prompt_log_path: str, result_log_path: str):
     prompt_handler.addFilter(lambda record: 'PROMPT' in record.getMessage())
     logger.addHandler(prompt_handler)
 
-    # File handler for results
+    # Remove existing result handlers if any to prevent duplication
+    for handler in results_logger.handlers[:]:
+        results_logger.removeHandler(handler)
+
+    # File handler for results with a simple formatter (no metadata)
     result_handler = logging.FileHandler(result_log_path)
-    result_handler.setLevel(logging.DEBUG)
-    result_handler.setFormatter(formatter)
-    result_handler.addFilter(lambda record: 'RESULT' in record.getMessage())
-    logger.addHandler(result_handler)
+    result_handler.setLevel(logging.INFO)
+    simple_formatter = logging.Formatter('%(message)s')
+    result_handler.setFormatter(simple_formatter)
+    results_logger.addHandler(result_handler)
+
 
 def parse_arguments() -> argparse.Namespace:
     """
     Parses command-line arguments.
-    
+
     Returns:
         argparse.Namespace: Parsed arguments.
     """
@@ -103,14 +113,15 @@ def parse_arguments() -> argparse.Namespace:
     )
     return parser.parse_args()
 
+
 def read_file_in_chunks(file_path: str, chunk_size: int):
     """
     Reads a file and yields chunks of lines.
-    
+
     Args:
         file_path (str): Path to the file.
         chunk_size (int): Number of lines per chunk.
-    
+
     Yields:
         List[str]: A chunk of lines from the file.
     """
@@ -134,10 +145,11 @@ def read_file_in_chunks(file_path: str, chunk_size: int):
         logger.error(f"Error reading file: {e}")
         sys.exit(1)
 
+
 def get_openai_api_key() -> str:
     """
     Retrieves the OpenAI API key from environment variables.
-    
+
     Returns:
         str: OpenAI API key.
     """
@@ -147,14 +159,15 @@ def get_openai_api_key() -> str:
         sys.exit(1)
     return api_key
 
+
 def refine_prompt(user_prompt: str, engine: str = "gpt-4o-mini") -> Tuple[str, str]:
     """
     Refines the user-provided prompt to work effectively with chunked processing.
-    
+
     Args:
         user_prompt (str): The original prompt provided by the user.
         engine (str): The OpenAI model to use.
-    
+
     Returns:
         Tuple[str, str]: Refined chunk prompt and compilation instructions.
     """
@@ -167,15 +180,17 @@ def refine_prompt(user_prompt: str, engine: str = "gpt-4o-mini") -> Tuple[str, s
 
     try:
         logger.debug(f"PROMPT Refining Prompt:\n{user_message}")
-        response = client.chat.completions.create(model=engine,
-        messages=[
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_message}
-        ],
-        temperature=0.3,
-        max_tokens=1000,
-        n=1,
-        stop=None)
+        response = client.chat.completions.create(
+            model=engine,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.3,
+            max_tokens=1000,
+            n=1,
+            stop=None
+        )
         refined_content = response.choices[0].message.content.strip()
         logger.debug(f"PROMPT Refined Content:\n{refined_content}")
 
@@ -196,15 +211,16 @@ def refine_prompt(user_prompt: str, engine: str = "gpt-4o-mini") -> Tuple[str, s
         logger.error(f"OpenAI API error during prompt refinement: {e}")
         sys.exit(1)
 
+
 def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4o-mini") -> str:
     """
     Sends a chunk of text to ChatGPT for analysis using the refined chunk prompt and returns the response.
-    
+
     Args:
         chunk (str): The text chunk to analyze.
         chunk_prompt (str): The refined prompt for chunk analysis.
         engine (str): The OpenAI model to use.
-    
+
     Returns:
         str: The analysis result from ChatGPT.
     """
@@ -214,17 +230,20 @@ def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4o-mini") ->
         try:
             prompt_content = f"{chunk_prompt}\n\nText:\n{chunk}"
             logger.debug(f"PROMPT Sending Chunk Prompt:\n{prompt_content}")
-            response = client.chat.completions.create(model=engine,
-            messages=[
-                {"role": "system", "content": "You are an assistant that analyzes provided text based on the given prompt."},
-                {"role": "user", "content": prompt_content}
-            ],
-            temperature=0.5,
-            max_tokens=1500,
-            n=1,
-            stop=None)
+            response = client.chat.completions.create(
+                model=engine,
+                messages=[
+                    {"role": "system", "content": "You are an assistant that analyzes provided text based on the given prompt."},
+                    {"role": "user", "content": prompt_content}
+                ],
+                temperature=0.5,
+                max_tokens=1500,
+                n=1,
+                stop=None
+            )
             analysis = response.choices[0].message.content.strip()
-            logger.debug(f"RESULT Analysis Result:\n{analysis}")
+            # Log the analysis result to results.log using results_logger
+            results_logger.info(f"--- Analysis for Chunk ---\n{analysis}\n")
             return analysis
         except openai.RateLimitError:
             wait_time = backoff_factor ** attempt
@@ -234,17 +253,20 @@ def analyze_chunk(chunk: str, chunk_prompt: str, engine: str = "gpt-4o-mini") ->
             logger.error(f"OpenAI API error: {e}")
             break
     logger.error("Failed to retrieve analysis from ChatGPT after multiple attempts.")
+    # Log the failure message to results.log
+    results_logger.info("Analysis not available due to API errors.\n")
     return "Analysis not available due to API errors."
+
 
 def compile_final_report(partial_results: List[str], compilation_instructions: str, engine: str = "gpt-4o") -> str:
     """
     Compiles all partial analysis results into a final comprehensive report using the compilation instructions.
-    
+
     Args:
         partial_results (List[str]): List of partial analysis results.
         compilation_instructions (str): Instructions on how to compile the final report.
         engine (str): The OpenAI model to use.
-    
+
     Returns:
         str: The final compiled report.
     """
@@ -258,26 +280,32 @@ def compile_final_report(partial_results: List[str], compilation_instructions: s
 
     try:
         logger.debug(f"PROMPT Compilation Prompt:\n{user_message}")
-        response = client.chat.completions.create(model=engine,
-        messages=[
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_message}
-        ],
-        temperature=0.3,
-        max_tokens=2000,
-        n=1,
-        stop=None)
+        response = client.chat.completions.create(
+            model=engine,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.3,
+            max_tokens=2000,
+            n=1,
+            stop=None
+        )
         final_report = response.choices[0].message.content.strip()
-        logger.debug(f"RESULT Final Compiled Report:\n{final_report}")
+        # Log the final report to results.log using results_logger
+        results_logger.info("--- Final Compiled Report ---\n" + final_report + "\n")
         return final_report
     except openai.OpenAIError as e:
         logger.error(f"OpenAI API error during final compilation: {e}")
+        # Log the failure message to results.log
+        results_logger.info("Final report compilation failed due to API errors.\n")
         return "Final report compilation failed due to API errors."
+
 
 def save_logs(prompt_log_path: str, result_log_path: str):
     """
     Ensures that prompt and result log files are properly closed.
-    
+
     Args:
         prompt_log_path (str): Path to the prompt log file.
         result_log_path (str): Path to the result log file.
@@ -286,6 +314,10 @@ def save_logs(prompt_log_path: str, result_log_path: str):
     for handler in handlers:
         handler.close()
         logger.removeHandler(handler)
+    for handler in results_logger.handlers[:]:
+        handler.close()
+        results_logger.removeHandler(handler)
+
 
 def main():
     """
@@ -342,6 +374,7 @@ def main():
     finally:
         # Ensure all log handlers are properly closed
         save_logs(prompt_log_path, result_log_path)
+
 
 if __name__ == "__main__":
     main()
